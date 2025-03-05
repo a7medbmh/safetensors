@@ -202,7 +202,7 @@ enum Device {
     Xpu(usize),
     Xla(usize),
     Mlu(usize),
-    Hpu,
+    Hpu(usize),
     /// User didn't specify accelerator, torch
     /// is responsible for choosing.
     Anonymous(usize),
@@ -232,12 +232,13 @@ impl<'source> FromPyObject<'source> for Device {
                 "xpu" => Ok(Device::Xpu(0)),
                 "xla" => Ok(Device::Xla(0)),
                 "mlu" => Ok(Device::Mlu(0)),
-                "hpu" => Ok(Device::Hpu),
+                "hpu" => Ok(Device::Hpu(0)),
                 name if name.starts_with("cuda:") => parse_device(name).map(Device::Cuda),
                 name if name.starts_with("npu:") => parse_device(name).map(Device::Npu),
                 name if name.starts_with("xpu:") => parse_device(name).map(Device::Xpu),
                 name if name.starts_with("xla:") => parse_device(name).map(Device::Xla),
                 name if name.starts_with("mlu:") => parse_device(name).map(Device::Mlu),
+                name if name.starts_with("hpu:") => parse_device(name).map(Device::Hpu),
                 name => Err(SafetensorError::new_err(format!(
                     "device {name} is invalid"
                 ))),
@@ -264,7 +265,7 @@ impl<'py> IntoPyObject<'py> for Device {
             Device::Xpu(n) => format!("xpu:{n}").into_pyobject(py).map(|x| x.into_any()),
             Device::Xla(n) => format!("xla:{n}").into_pyobject(py).map(|x| x.into_any()),
             Device::Mlu(n) => format!("mlu:{n}").into_pyobject(py).map(|x| x.into_any()),
-            Device::Hpu => "hpu".into_pyobject(py).map(|x| x.into_any()),
+            Device::Hpu(n) => format!("hpu:{n}").into_pyobject(py).map(|x| x.into_any()),
             Device::Anonymous(n) => n.into_pyobject(py).map(|x| x.into_any()),
         }
     }
@@ -439,6 +440,16 @@ impl Open {
     pub fn keys(&self) -> PyResult<Vec<String>> {
         let mut keys: Vec<String> = self.metadata.tensors().keys().cloned().collect();
         keys.sort();
+        Ok(keys)
+    }
+
+    /// Returns the names of the tensors in the file, ordered by offset.
+    ///
+    /// Returns:
+    ///     (`List[str]`):
+    ///         The name of the tensors contained in that file
+    pub fn offset_keys(&self) -> PyResult<Vec<String>> {
+        let keys: Vec<String> = self.metadata.offset_keys();
         Ok(keys)
     }
 
@@ -648,6 +659,15 @@ impl safe_open {
     ///         The name of the tensors contained in that file
     pub fn keys(&self) -> PyResult<Vec<String>> {
         self.inner()?.keys()
+    }
+
+    /// Returns the names of the tensors in the file, ordered by offset.
+    ///
+    /// Returns:
+    ///     (`List[str]`):
+    ///         The name of the tensors contained in that file
+    pub fn offset_keys(&self) -> PyResult<Vec<String>> {
+        self.inner()?.offset_keys()
     }
 
     /// Returns a full tensor
